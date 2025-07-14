@@ -1,0 +1,13 @@
+* text eol=lf
+
+*.go -text diff=golang
+
+*.sh text
+
+Makefile text eol=lf
+
+*.gitattributes      text
+.gitignore           text
+
+.gitattributes       export-ignore
+.gitignore           export-ignore
