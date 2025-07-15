@@ -6,6 +6,8 @@
 
 Makefile text eol=lf
 
+*.sql  text eol=lf linguist-detectable=true
+
 *.gitattributes      text
 .gitignore           text
 
