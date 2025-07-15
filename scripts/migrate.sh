@@ -6,7 +6,7 @@ set -o pipefail
 
 export TERM=xterm-256color
 
-# Color output
+# Colors
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 YELLOW=$(tput setaf 3)
@@ -25,15 +25,16 @@ log() {
     local color icon
 
     case "$level" in
-        ERROR) color="$RED"; icon="❌";;
-        WARN)  color="$YELLOW"; icon="⚠️ ";;
-        INFO)  color="$BLUE"; icon="ℹ️ ";;
-        SUCCESS) color="$GREEN"; icon="✅";;
-        *)     color=""; icon="";;
+        ERROR)   color="$RED";    icon="❌";;
+        WARN)    color="$YELLOW"; icon="⚠️ ";;
+        INFO)    color="$BLUE";   icon="ℹ️ ";;
+        SUCCESS) color="$GREEN";  icon="✅";;
+        *)       color="";        icon="";;
     esac
 
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
     if [ -t 1 ]; then
         echo -e "${BOLD}${color}${icon} [$timestamp] $level:${NC} $message"
     else
@@ -48,24 +49,30 @@ DB_NAME=${DB_NAME:-postgres}
 DB_USER=${DB_USER:-postgres}
 DB_PASSWORD=${DB_PASSWORD:-1}
 DB_SSLMODE=${DB_SSLMODE:-disable}
-
 MIGRATIONS_DIR="internal/database/migrations"
+
+# Generate DB URL
+DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
 MIGRATE_CMD="migrate -source file://${MIGRATIONS_DIR} -database ${DB_URL}"
 
-# Generating URL for go-migrate
-DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
-
 COMMAND=${1:-}
+
 case "$COMMAND" in
     up)
         log INFO "Applying migrations (up)..."
-        $MIGRATE_CMD up
+        $MIGRATE_CMD up || {
+            log ERROR "Error applying migrations"
+            exit $ERR_MIGRATE
+        }
         log SUCCESS "Migrations applied successfully"
         ;;
 
     down)
         log INFO "Rolling back last migration (down)..."
-        $MIGRATE_CMD down 1
+        $MIGRATE_CMD down 1 || {
+            log ERROR "Error rolling back migration"
+            exit $ERR_MIGRATE
+        }
         log SUCCESS "Migration rolled back successfully"
         ;;
 
@@ -73,21 +80,30 @@ case "$COMMAND" in
         VERSION_ARG=${2:-}
         if [[ -z "$VERSION_ARG" || ! "$VERSION_ARG" =~ ^[0-9]+$ ]]; then
             log ERROR "You must provide a numeric version: $0 force <version>"
-            exit 1
+            exit $ERR_VALIDATION
         fi
         log INFO "Forcing migration version to $VERSION_ARG..."
-        $MIGRATE_CMD force "$VERSION_ARG"
+        $MIGRATE_CMD force "$VERSION_ARG" || {
+            log ERROR "Error forcing migration version"
+            exit $ERR_MIGRATE
+        }
         log SUCCESS "Migration version forced to $VERSION_ARG"
         ;;
 
     version)
         log INFO "Current migration version:"
-        $MIGRATE_CMD version
+        $MIGRATE_CMD version || {
+            log ERROR "Error retrieving migration version"
+            exit $ERR_MIGRATE
+        }
         ;;
 
     clean)
         log WARN "Dropping all migrations (this is destructive)..."
-        $MIGRATE_CMD drop
+        $MIGRATE_CMD drop || {
+            log ERROR "Error dropping migrations"
+            exit $ERR_MIGRATE
+        }
         log SUCCESS "All migrations have been dropped"
         ;;
 
@@ -110,6 +126,6 @@ case "$COMMAND" in
     *)
         log ERROR "Unknown command: $COMMAND"
         echo "Run '$0 help' to see available commands"
-        exit 1
+        exit $ERR_VALIDATION
         ;;
 esac
