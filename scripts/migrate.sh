@@ -1,5 +1,9 @@
 #!/bin/bash
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-postgres}
