@@ -4,6 +4,37 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+export TERM=xterm-256color
+
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+BLUE=$(tput setaf 4)
+BOLD=$(tput bold)
+NC=$(tput sgr0)
+
+log() {
+    local level="$1"
+    local message="$2"
+    local color icon
+
+    case "$level" in
+        ERROR) color="$RED"; icon="❌";;
+        WARN)  color="$YELLOW"; icon="⚠️ ";;
+        INFO)  color="$BLUE"; icon="ℹ️ ";;
+        SUCCESS) color="$GREEN"; icon="✅";;
+        *)     color=""; icon="";;
+    esac
+
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    if [ -t 1 ]; then
+        echo -e "${BOLD}${color}${icon} [$timestamp] $level:${NC} $message"
+    else
+        echo "[$timestamp] $level: $message"
+    fi
+}
+
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-postgres}
@@ -12,25 +43,65 @@ DB_PASSWORD=${DB_PASSWORD:-1}
 DB_SSLMODE=${DB_SSLMODE:-disable}
 
 MIGRATIONS_DIR="internal/database/migrations"
-
 DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
+MIGRATE_CMD="migrate -source file://${MIGRATIONS_DIR} -database ${DB_URL}"
 
 COMMAND=${1:-}
+
 case "$COMMAND" in
     up)
-        echo "Применение миграций (up)..."
-        migrate -source "file://$MIGRATIONS_DIR" -database "$DB_URL" up
-        echo "Миграции успешно применены"
+        log INFO "Applying migrations (up)..."
+        $MIGRATE_CMD up
+        log SUCCESS "Migrations applied successfully"
         ;;
+
     down)
-        echo "Откат миграции (down)..."
-        migrate -source "file://$MIGRATIONS_DIR" -database "$DB_URL" down 1
-        echo "Миграция успешно откачена"
+        log INFO "Rolling back last migration (down)..."
+        $MIGRATE_CMD down 1
+        log SUCCESS "Migration rolled back successfully"
         ;;
+
+    force)
+        VERSION_ARG=${2:-}
+        if [[ -z "$VERSION_ARG" || ! "$VERSION_ARG" =~ ^[0-9]+$ ]]; then
+            log ERROR "You must provide a numeric version: $0 force <version>"
+            exit 1
+        fi
+        log INFO "Forcing migration version to $VERSION_ARG..."
+        $MIGRATE_CMD force "$VERSION_ARG"
+        log SUCCESS "Migration version forced to $VERSION_ARG"
+        ;;
+
+    version)
+        log INFO "Current migration version:"
+        $MIGRATE_CMD version
+        ;;
+
+    clean)
+        log WARN "Dropping all migrations (this is destructive)..."
+        $MIGRATE_CMD drop
+        log SUCCESS "All migrations have been dropped"
+        ;;
+
+    help|"")
+        echo -e "${BOLD}Usage:${NC} $0 [command] [args]"
+        echo ""
+        echo "Commands:"
+        echo "  up                  - Apply all pending migrations"
+        echo "  down                - Roll back the last migration"
+        echo "  force <version>     - Force set migration version (e.g. 3)"
+        echo "  version             - Show current migration version"
+        echo "  clean               - Drop all migrations (⚠ destructive!)"
+        echo "  help                - Show this help message"
+        echo ""
+        echo "Example:"
+        echo "  $0 up"
+        echo "  $0 force 5"
+        ;;
+
     *)
-        echo "Использование: $0 [up|down]"
-        echo "  up: Применить все миграции"
-        echo "  down: Откатить последнюю миграцию"
+        log ERROR "Unknown command: $COMMAND"
+        echo "Run '$0 help' to see available commands"
         exit 1
         ;;
 esac

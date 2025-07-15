@@ -5,43 +5,34 @@ DB_USER ?= postgres
 DB_PASSWORD ?= 1
 DB_SSLMODE ?= disable
 
-MIGRATIONS_DIR = internal/database/migrations
-DB_URL = postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
-MIGRATE = migrate -source file://$(MIGRATIONS_DIR) -database $(DB_URL)
+MIGRATE_SCRIPT = ./scripts/migrate.sh
 
 .PHONY: up down force version clean help
 
-up:
-	@echo "Applying migrations (up)..."
-	$(MIGRATE) up
-	@echo "Migrations applied successfully"
+up:        ## Apply all pending migrations
+	@$(MIGRATE_SCRIPT) up
 
-down:
-	@echo "Reverting the last migration (down)..."
-	$(MIGRATE) down 1
-	@echo "Migration reverted successfully"
+down:      ## Roll back the last migration
+	@$(MIGRATE_SCRIPT) down
 
-force:
-	@test -n "$(version)" || { echo "Specify version: make migrate-force version=N"; exit 1; }
-	$(MIGRATE) force $(version)
+force:     ## Force set a specific migration version (use: make force version=N)
+	@if [ -z "$(version)" ]; then \
+		echo "❌ Missing version. Usage: make force version=N"; \
+		exit 1; \
+	fi
+	@$(MIGRATE_SCRIPT) force $(version)
 
-version:
-	$(MIGRATE) version
+version:   ## Show current migration version
+	@$(MIGRATE_SCRIPT) version
 
-clean:
-	@echo "Dropping all migrations..."
-	$(MIGRATE) drop
-	@echo "All migrations have been dropped"
+clean:     ## Drop all migrations (⚠ dangerous!)
+	@$(MIGRATE_SCRIPT) clean
 
-help:
-	@echo "Usage: make [target]"
+help:      ## Show this help message
 	@echo ""
-	@echo "Targets:"
-	@echo "  migrate-up       - Apply all migrations"
-	@echo "  migrate-down     - Revert the last migration"
-	@echo "  migrate-force    - Force set a migration version (version=N)"
-	@echo "  migrate-version  - Show current migration version"
-	@echo "  migrate-clean    - Drop all migrations (dangerous!)"
+	@echo "Migration commands (via scripts/migrate.sh):"
 	@echo ""
-	@echo "Example:"
-	@echo "  make migrate-up DB_HOST=127.0.0.1 DB_PASSWORD=secret"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' Makefile | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Example: make force version=3"
