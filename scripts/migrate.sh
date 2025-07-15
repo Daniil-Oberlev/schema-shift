@@ -6,6 +6,7 @@ set -o pipefail
 
 export TERM=xterm-256color
 
+# Color output
 RED=$(tput setaf 1)
 GREEN=$(tput setaf 2)
 YELLOW=$(tput setaf 3)
@@ -13,6 +14,11 @@ BLUE=$(tput setaf 4)
 BOLD=$(tput bold)
 NC=$(tput sgr0)
 
+# Error codes
+ERR_MIGRATE=2
+ERR_VALIDATION=3
+
+# Color output function
 log() {
     local level="$1"
     local message="$2"
@@ -35,6 +41,7 @@ log() {
     fi
 }
 
+# DB settings
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_NAME=${DB_NAME:-postgres}
@@ -43,11 +50,12 @@ DB_PASSWORD=${DB_PASSWORD:-1}
 DB_SSLMODE=${DB_SSLMODE:-disable}
 
 MIGRATIONS_DIR="internal/database/migrations"
-DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
 MIGRATE_CMD="migrate -source file://${MIGRATIONS_DIR} -database ${DB_URL}"
 
-COMMAND=${1:-}
+# Generating URL for go-migrate
+DB_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=${DB_SSLMODE}"
 
+COMMAND=${1:-}
 case "$COMMAND" in
     up)
         log INFO "Applying migrations (up)..."
