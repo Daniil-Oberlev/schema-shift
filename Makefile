@@ -1,3 +1,4 @@
+# Default values (can be overridden via command line or .env)
 DB_HOST ?= localhost
 DB_PORT ?= 5432
 DB_NAME ?= postgres

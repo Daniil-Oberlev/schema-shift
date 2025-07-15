@@ -42,6 +42,20 @@ log() {
     fi
 }
 
+# Load .env if exists, without overriding existing vars
+if [ -f ".env" ]; then
+    log INFO "Loading environment from .env"
+    while IFS='=' read -r key value; do
+        [[ "$key" =~ ^#.*$ || -z "$key" ]] && continue
+        if [ -z "${!key:-}" ]; then
+            export "$key=$value" || {
+                log ERROR "Failed to export $key"
+                exit $ERR_ENV
+            }
+        fi
+    done < .env
+fi
+
 # DB settings
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
